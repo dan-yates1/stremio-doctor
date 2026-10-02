@@ -53,17 +53,24 @@ func Summarize(rep report.Report) Entry {
 		e.Baseline = append(e.Baseline, BaselineSummary{Name: b.Name, OK: b.Reachable(), Ms: b.Result.Timing.Total.Milliseconds()})
 	}
 	for _, a := range rep.Addons {
-		s := AddonSummary{Key: key(a.AddonResult), Name: a.Name, Host: a.Host, Status: a.Status}
-		for _, c := range a.Checks {
-			cs := CheckSummary{Kind: c.Kind, MedianMs: c.Median().Total.Milliseconds(), Failures: c.Failures(), Runs: len(c.Results)}
-			if r, ok := c.LastError(); ok {
-				cs.ErrKind = r.ErrKind
-			}
-			s.Checks = append(s.Checks, cs)
-		}
-		e.Addons = append(e.Addons, s)
+		e.Addons = append(e.Addons, AddonSummary{Key: key(a.AddonResult), Name: a.Name, Host: a.Host,
+			Status: a.Status, Checks: SummarizeChecks(a.Checks)})
 	}
 	return e
+}
+
+// SummarizeChecks reduces checks to their median time, failure count and
+// last error kind.
+func SummarizeChecks(checks []scan.Check) []CheckSummary {
+	var out []CheckSummary
+	for _, c := range checks {
+		cs := CheckSummary{Kind: c.Kind, MedianMs: c.Median().Total.Milliseconds(), Failures: c.Failures(), Runs: len(c.Results)}
+		if r, ok := c.LastError(); ok {
+			cs.ErrKind = r.ErrKind
+		}
+		out = append(out, cs)
+	}
+	return out
 }
 
 func key(a scan.AddonResult) string {

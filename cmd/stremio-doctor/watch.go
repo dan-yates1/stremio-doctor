@@ -32,12 +32,13 @@ func runWatch(ctx context.Context, cfg config, out io.Writer, p report.Palette) 
 	}, lastEntry(cfg))
 
 	fmt.Fprintf(out, "Watching your addons: rescanning every %s. Press Ctrl+C to stop.\n", shortDuration(cfg.interval))
-	w.Run(ctx, func(c watch.Cycle) { printCycle(out, cfg, p, c) })
+	sh := newSharer(cfg)
+	w.Run(ctx, func(c watch.Cycle) { printCycle(ctx, out, cfg, p, c, sh) })
 	fmt.Fprintln(out, "\nStopped watching.")
 	return 0
 }
 
-func printCycle(out io.Writer, cfg config, p report.Palette, c watch.Cycle) {
+func printCycle(ctx context.Context, out io.Writer, cfg config, p report.Palette, c watch.Cycle, sh *sharer) {
 	stamp := time.Now().Format("15:04")
 	if c.Err != nil {
 		fmt.Fprintf(out, "%s  %sscan failed: %v%s\n", stamp, p.Red, c.Err, p.Reset)
@@ -51,6 +52,7 @@ func printCycle(out io.Writer, cfg config, p report.Palette, c watch.Cycle) {
 	}
 	printSummary(out, stamp, rep.Counts, c.Changes, p)
 	writeFiles(out, cfg, rep, c.N == 1)
+	sh.maybeShare(ctx, out, rep)
 }
 
 // printSummary prints the one-line result of a scan and its status changes.

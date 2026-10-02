@@ -43,6 +43,10 @@ type config struct {
 	interval    time.Duration
 	historyPath string
 	keepDays    int
+
+	share         bool
+	shareDryRun   bool
+	shareEndpoint string
 }
 
 type urlList []string
@@ -87,6 +91,9 @@ func parseFlags() (config, bool) {
 	flag.DurationVar(&cfg.interval, "interval", defaultInterval, "time between scans in watch mode (minimum 1m)")
 	flag.StringVar(&cfg.historyPath, "history", history.DefaultPath(), "file that keeps a summary of every scan (empty to disable)")
 	flag.IntVar(&cfg.keepDays, "keep-days", 30, "days of history to keep")
+	flag.BoolVar(&cfg.share, "share", false, "send anonymous results for well-known public addons to the community status page (opt-in)")
+	flag.BoolVar(&cfg.shareDryRun, "share-dry-run", false, "print exactly what --share would send, without sending it")
+	flag.StringVar(&cfg.shareEndpoint, "share-endpoint", defaultShareEndpoint, "community server URL for --share")
 	flag.BoolVar(&cfg.tray, "tray", false, "show a system tray icon and keep watching (implies --watch)")
 	flag.BoolVar(&version, "version", false, "print version and exit")
 	flag.Parse()
@@ -132,7 +139,9 @@ func run(cfg config) int {
 	}
 	rep.History = recordHistory(cfg, history.Summarize(rep))
 	report.WriteTerminal(out, rep, palette)
-	return writeFiles(out, cfg, rep, true)
+	code := writeFiles(out, cfg, rep, true)
+	newSharer(cfg).maybeShare(ctx, out, rep)
+	return code
 }
 
 // discoveryError is a failure to find any addons, with the notes gathered

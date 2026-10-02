@@ -78,6 +78,8 @@ JSON.parse(localStorage.getItem("profile")).auth.key
 | `--interval` | `15m` | Time between scans in watch mode (minimum `1m`) |
 | `--history <file>` | see below | Where scan summaries are kept (`""` to disable) |
 | `--keep-days` | `30` | Days of history to keep |
+| `--share` | | Opt in to sending anonymous results for well-known public addons to a community status page (not live yet) |
+| `--share-dry-run` | | Print exactly what `--share` would send, without sending anything |
 
 ## Watch mode and history
 
@@ -116,7 +118,8 @@ Each request uses a fresh connection, so every result has a full DNS → connect
 
 - Addon URLs often contain debrid API keys. **Reports redact them by default** (`https://host/…/manifest.json`), so you can paste reports into GitHub issues or Reddit.
 - Your Stremio auth key is only ever sent to `api.strem.io` (the official API), and only to *read* your addon list. It is never printed, logged, or written to disk. The tool never changes your addons.
-- Nothing is sent anywhere else. The only network traffic is to your own addons and the three reference endpoints above.
+- Nothing is sent anywhere else unless you pass `--share`. Without it, the only network traffic is to your own addons and the three reference endpoints above.
+- `--share` is opt-in. It only includes addons served from a short built-in list of well-known public instances (Cinemeta, Torrentio, the shared ElfHosted instances and similar; see `internal/share/hosts.go`). Configured, private and self-hosted addons are never sent. For those public addons it sends the manifest id, version and host, plus per-request median time, failure count and error type. It also sends your internet and Stremio API response times, so a slow connection isn't blamed on the addon, and the scan hour in UTC. It never sends addon URLs, keys, names of your other addons, IP addresses or your auth key. Run `--share-dry-run` to see the exact JSON. No community server exists yet, so `--share` currently sends nothing.
 - The history file (see [Watch mode and history](#watch-mode-and-history)) stays on your computer and never contains addon URLs.
 
 ## Building from source
