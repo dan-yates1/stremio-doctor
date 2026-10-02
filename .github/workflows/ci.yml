@@ -8,6 +8,7 @@ on:
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
@@ -15,7 +16,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          # Build with current Go: go1.22.0 binaries lack LC_UUID and crash on
+          # recent macOS. go.mod only sets the minimum for `go install` users.
+          go-version: stable
       - run: go vet ./...
       - run: go test ./...
       - run: go build ./cmd/stremio-doctor

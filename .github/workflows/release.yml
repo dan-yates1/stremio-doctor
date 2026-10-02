@@ -16,7 +16,9 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          # Build with current Go: go1.22.0 binaries lack LC_UUID and crash on
+          # recent macOS. go.mod only sets the minimum for `go install` users.
+          go-version: stable
       - run: go test ./...
       - uses: goreleaser/goreleaser-action@v6
         with:

@@ -14,6 +14,7 @@ A Go CLI that discovers a user's installed Stremio addons, probes them from the 
 - **Secrets:** addon URLs embed debrid keys. Reports must redact them unless `--show-urls` is set (`report.Redact`). `probe.Classify` strips URLs from error messages. The auth key is only sent to api.strem.io and never printed or written. `TestReportsNeverLeakSecretsByDefault` guards this.
 - Never write to the user's Stremio data or call `addonCollectionSet`.
 - Keep dependencies minimal: stdlib plus goleveldb.
+- CI and release build with `go-version: stable`, not go.mod: go1.22.0 produces macOS binaries without LC_UUID that crash on current macOS.
 
 ## Commands
 - `go test ./...`, `go vet ./...`
