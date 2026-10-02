@@ -9,7 +9,8 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    # macOS: the darwin builds need cgo for the tray (see .goreleaser.yaml).
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
