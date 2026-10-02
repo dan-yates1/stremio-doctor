@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stremio Doctor Report</title>
+<style>
+:root {
+  --bg: #f7f7f8; --card: #ffffff; --text: #1d1d22; --muted: #6b6b76; --line: #e3e3e8;
+  --fail: #d1343a; --warn: #c07a00; --info: #2a7fb8; --ok: #2f9e5b;
+  --dns: #8e7cc3; --connect: #6fa8dc; --tls: #76a5af; --server: #e69138; --download: #93c47d;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141418; --card: #1d1d23; --text: #ececf1; --muted: #9a9aa6; --line: #2e2e36;
+    --fail: #ff6b70; --warn: #f0b443; --info: #5fb3ea; --ok: #5cc98a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; }
+h2 { font-size: 1.1rem; margin: 32px 0 12px; }
+.muted { color: var(--muted); font-size: .9rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 20px; }
+.stat b { display: block; font-size: 1.8rem; }
+.fail { color: var(--fail); } .warn { color: var(--warn); } .info { color: var(--info); } .ok { color: var(--ok); }
+.badge { display: inline-block; font-size: .72rem; font-weight: 700; letter-spacing: .04em;
+  padding: 1px 7px; border-radius: 99px; border: 1px solid currentColor; }
+.finding { display: grid; grid-template-columns: 56px 1fr; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.finding:first-child { border-top: 0; }
+.finding p { margin: 2px 0 0; color: var(--muted); }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: .8rem; color: var(--muted); font-weight: 600; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+details.addon { margin-bottom: 10px; }
+details.addon > summary { cursor: pointer; list-style: none; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+details.addon > summary::-webkit-details-marker { display: none; }
+details.addon > summary::before { content: "▸"; color: var(--muted); }
+details.addon[open] > summary::before { content: "▾"; }
+.name { font-weight: 600; }
+.bar { position: relative; height: 12px; width: 260px; max-width: 40vw; background: var(--line); border-radius: 3px; display: flex; overflow: hidden; }
+.bar span { height: 100%; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; margin-right: 14px; font-size: .85rem; color: var(--muted); }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.dns { background: var(--dns); } .connect { background: var(--connect); } .tls { background: var(--tls); }
+.server { background: var(--server); } .download { background: var(--download); }
+code { font-size: .85em; word-break: break-all; }
+footer { margin-top: 40px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Stremio Doctor</h1>
+  <div class="muted">
+    {{.Generated.Format "2 Jan 2006 15:04"}} · {{len .Addons}} addons · {{.Rounds}} rounds each · addon list from {{.Source}} · v{{.Version}}
+  </div>
+  {{range .Notes}}<div class="warn" style="margin-top:6px">Note: {{.}}</div>{{end}}
+
+  <div class="summary">
+    <div class="card stat"><b class="fail">{{.Counts.Fail}}</b>failing</div>
+    <div class="card stat"><b class="warn">{{.Counts.Warn}}</b>with warnings</div>
+    <div class="card stat"><b class="ok">{{.Counts.OK}}</b>healthy</div>
+    <div class="card stat"><b class="info">{{.Counts.Info}}</b>with notes</div>
+  </div>
+
+  <h2>Findings</h2>
+  <div class="card">
+    {{range .AllFinds}}
+    <div class="finding">
+      <div><span class="badge {{.Severity}}">{{upper .Severity}}</span></div>
+      <div><strong>{{if .Addon}}{{.Addon}}: {{end}}{{.Title}}</strong><p>{{.Detail}}</p></div>
+    </div>
+    {{else}}
+    <div class="ok">No problems found. Every addon answered quickly.</div>
+    {{end}}
+  </div>
+
+  <h2>Baseline</h2>
+  <div class="card table-wrap">
+    <table>
+      <tr><th>Service</th><th>Status</th><th class="num">Time</th><th>Meaning</th></tr>
+      {{range .Baseline}}
+      <tr>
+        <td>{{.Name}}</td>
+        {{if .Reachable}}<td class="ok">reachable</td><td class="num">{{dur .Result.Timing.Total}}</td><td></td>
+        {{else}}<td class="fail">unreachable</td><td class="num">-</td><td class="muted" style="white-space:normal">{{.Note}}</td>{{end}}
+      </tr>
+      {{end}}
+    </table>
+  </div>
+
+  <h2>Addons</h2>
+  <div class="card table-wrap">
+    <table>
+      <tr><th></th><th>Addon</th><th>Host</th>{{range columns}}<th class="num">{{.}}</th>{{end}}</tr>
+      {{range .Addons}}{{$a := .}}
+      <tr>
+        <td><span class="badge {{.Status}}">{{upper .Status}}</span></td>
+        <td class="name">{{.Name}}</td>
+        <td class="muted">{{.Host}}</td>
+        {{range columns}}<td class="num">{{cell $a .}}</td>{{end}}
+      </tr>
+      {{end}}
+    </table>
+  </div>
+
+  <h2>Request details</h2>
+  <div class="legend">
+    <span><i class="dns"></i>DNS</span><span><i class="connect"></i>Connect</span><span><i class="tls"></i>TLS</span>
+    <span><i class="server"></i>Server</span><span><i class="download"></i>Download</span>
+  </div>
+  <p class="muted">Bars show median times on a shared scale ({{dur .Scale}} = full width). Mostly orange means the addon's server is slow; mostly blue or purple points at your network or DNS.</p>
+  {{$scale := .Scale}}
+  {{range .Addons}}
+  <details class="addon card"{{if ge .Status 2}} open{{end}}>
+    <summary>
+      <span class="badge {{.Status}}">{{upper .Status}}</span>
+      <span class="name">{{.Name}}</span>
+      <span class="muted">{{if .Version}}v{{.Version}} · {{end}}{{.Host}}{{range .IPs}} · {{.}}{{end}}</span>
+    </summary>
+    <div class="muted" style="margin:8px 0"><code>{{.TransportURL}}</code></div>
+    {{range .Findings}}<div class="{{.Severity}}" style="margin:4px 0">{{.Title}}: <span class="muted">{{.Detail}}</span></div>{{end}}
+    <div class="table-wrap">
+      <table>
+        <tr><th>Request</th><th class="num">OK</th><th class="num">Median</th><th>Breakdown</th><th class="num">Items</th><th>Last error</th></tr>
+        {{range .Checks}}{{$t := timing .}}
+        <tr>
+          <td>{{.Label}}</td>
+          <td class="num">{{ok .}}/{{len .Results}}</td>
+          <td class="num">{{dur $t.Total}}</td>
+          <td title="{{breakdown $t}}">
+            <div class="bar">
+              <span class="dns" style="width: {{pct $t.DNS $scale}}%"></span>
+              <span class="connect" style="width: {{pct $t.Connect $scale}}%"></span>
+              <span class="tls" style="width: {{pct $t.TLS $scale}}%"></span>
+              <span class="server" style="width: {{pct $t.Server $scale}}%"></span>
+              <span class="download" style="width: {{pct $t.Download $scale}}%"></span>
+            </div>
+          </td>
+          <td class="num">{{items .}}</td>
+          <td class="fail">{{lastErr .}}</td>
+        </tr>
+        {{end}}
+      </table>
+    </div>
+  </details>
+  {{end}}
+
+  <footer class="muted">
+    Generated by <a href="https://github.com/dan-yates1/stremio-doctor">stremio-doctor</a>.
+    {{if .Redacted}}Addon URLs are redacted because they usually contain API keys, so this report is safe to share.{{else}}<strong class="fail">This report contains full addon URLs, which may include API keys. Do not share it publicly.</strong>{{end}}
+    Times are measured from your computer: they include your network, unlike global status pages.
+  </footer>
+</main>
+</body>
+</html>

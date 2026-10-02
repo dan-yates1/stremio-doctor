@@ -1,0 +1,106 @@
+# stremio-doctor
+
+**Find out which of your Stremio addons is slow or broken, and why.**
+
+Streams won't load? The list keeps spinning? stremio-doctor finds the addons you have installed, tests each one from your own computer the same way Stremio calls them, and tells you in plain English what's wrong:
+
+```
+  Addon                    Host                         manifest    catalog       meta     stream  subtitles  streams
+✗ OldAddon                 old-addon.example.com            FAIL          -          -          -          -        -
+! Torrentio                torrentio.strem.fun              60ms          -          -       6.8s          -       42
+✓ Cinemeta                 v3-cinemeta.strem.io             97ms      139ms       94ms          -          -        -
+
+Findings
+  [FAIL] OldAddon: Domain doesn't resolve
+         The addon's domain name doesn't exist anymore. The addon has likely shut down or moved; reinstall it.
+  [WARN] Torrentio: Slow stream
+         stream movie tt0111161 takes 6.8s (median). 6.8s: network 0.2s, server 6.4s, download 0.2s.
+         Most of that is the addon's server working, so the addon is the bottleneck, not your connection.
+```
+
+It also writes a shareable HTML report with a timing breakdown for every request.
+
+## How is this different from Stremio Status?
+
+[Stremio Status](https://github.com/SolitudePy/stremio-status) is great for checking whether a popular addon is down for everyone. stremio-doctor answers a different question: what's wrong with my setup?
+
+| | Stremio Status | stremio-doctor |
+|---|---|---|
+| Which addons | A fixed list of popular public addons | The addons **you** have installed, including your configured/private/self-hosted instances |
+| Measured from | Its own servers | **Your** computer and network |
+| Detail | Up / down + latency | Per request type (manifest, catalog, meta, stream, subtitles), split into DNS / connect / TLS / server / download |
+| Diagnosis | n/a | Timeouts, dead domains, rate limits (429), Cloudflare blocks, bad debrid keys (401/403), flaky or inconsistent addons, duplicates, several addons failing on the same host |
+
+Use both: if Stremio Status says an addon is up but stremio-doctor says it's slow for you, the problem is between you and it.
+
+## Download and run
+
+**Non-technical users:** download the file for your system from [Releases](https://github.com/dan-yates1/stremio-doctor/releases), double-click it, and the report opens in your browser.
+
+- Windows: `stremio-doctor_windows_amd64.zip` → `stremio-doctor.exe`. If SmartScreen warns about an unrecognised app, click *More info → Run anyway*. The binaries aren't code-signed yet.
+- macOS: `stremio-doctor_darwin_arm64.tar.gz` (Apple Silicon) or `_amd64` (Intel). Run it from Terminal the first time: `xattr -d com.apple.quarantine stremio-doctor && ./stremio-doctor`.
+- Linux: `stremio-doctor_linux_amd64.tar.gz`.
+
+**With Go installed:**
+
+```bash
+go install github.com/dan-yates1/stremio-doctor/cmd/stremio-doctor@latest
+```
+
+## How it finds your addons
+
+In order, the first source that works wins:
+
+1. `--addon <url>` / `--addons-file <file>`: test specific addon manifest URLs.
+2. `--auth-key <key>` or `STREMIO_AUTH_KEY`: fetch your addon list from your Stremio account.
+3. **Automatic:** read your login from the Stremio desktop app on this computer (Stremio 5 and 4 on Windows, Stremio 4 on macOS/Linux). The app's data is copied to a temp folder and read from there; the original is never modified. If you're logged in, the live addon list is fetched from your account; otherwise it uses the app's local copy.
+
+Use Stremio in a browser instead? Get your auth key: open [web.stremio.com](https://web.stremio.com), log in, press F12, and in the Console run:
+
+```js
+JSON.parse(localStorage.getItem("profile")).auth.key
+```
+
+## Options
+
+| Flag | Default | |
+|---|---|---|
+| `--rounds` | `3` | Times each request is repeated (results use the median) |
+| `--timeout` | `15s` | Per-request timeout |
+| `--concurrency` | `8` | Addons tested at once |
+| `--html <file>` | `stremio-doctor-report.html` | HTML report path (`""` to skip) |
+| `--json <file>` | | Also write JSON (`-` for stdout) |
+| `--no-open` | | Don't open the report in the browser |
+| `--show-urls` | | Show full addon URLs (**may contain your API keys**) |
+| `--profile-dir` | | Stremio `Local Storage/leveldb` folder, if auto-detection misses it |
+
+## What gets tested
+
+For each addon, every round:
+
+- `manifest.json`
+- the first catalog that needs no search/filter input
+- `meta` for the first item that catalog returned, or for a sample movie
+- `stream` for *The Shawshank Redemption* (`tt0111161`) and *Game of Thrones* S01E01 (`tt0944947:1:1`), when the addon supports them
+- `subtitles` for the sample movie
+
+Each request uses a fresh connection, so every result has a full DNS → connect → TLS → server → download breakdown. It also checks three reference points: general internet (Cloudflare), Stremio's API, and Stremio's local streaming server.
+
+## Privacy
+
+- Addon URLs often contain debrid API keys. **Reports redact them by default** (`https://host/…/manifest.json`), so you can paste reports into GitHub issues or Reddit.
+- Your Stremio auth key is only ever sent to `api.strem.io` (the official API), and only to *read* your addon list. It is never printed, logged, or written to disk. The tool never changes your addons.
+- Nothing is sent anywhere else. The only network traffic is to your own addons and the three reference endpoints above.
+
+## Building from source
+
+```bash
+go test ./...
+go build ./cmd/stremio-doctor
+```
+
+Releases are built by [GoReleaser](https://goreleaser.com) when a `v*` tag is pushed.
+
+## Licence
+
+MIT
