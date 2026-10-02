@@ -11,6 +11,7 @@ var (
 	procGetConsoleProcessList = kernel32.NewProc("GetConsoleProcessList")
 	procGetConsoleMode        = kernel32.NewProc("GetConsoleMode")
 	procSetConsoleMode        = kernel32.NewProc("SetConsoleMode")
+	procFreeConsole           = kernel32.NewProc("FreeConsole")
 	enableVirtualTerminalFlag = uint32(0x0004)
 )
 
@@ -33,3 +34,7 @@ func enableColor() bool {
 	r, _, _ := procSetConsoleMode.Call(h, uintptr(mode|enableVirtualTerminalFlag))
 	return r != 0
 }
+
+// detachConsole lets go of the console so a double-clicked tray app does not
+// leave an empty window open.
+func detachConsole() { procFreeConsole.Call() }

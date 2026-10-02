@@ -49,13 +49,17 @@ func printCycle(out io.Writer, cfg config, p report.Palette, c watch.Cycle) {
 		report.WriteTerminal(out, rep, p)
 		fmt.Fprintln(out)
 	}
-	n := rep.Counts
+	printSummary(out, stamp, rep.Counts, c.Changes, p)
+	writeFiles(out, cfg, rep, c.N == 1)
+}
+
+// printSummary prints the one-line result of a scan and its status changes.
+func printSummary(out io.Writer, stamp string, n report.Counts, changes []history.Change, p report.Palette) {
 	fmt.Fprintf(out, "%s  %s%d ok%s · %s%d warn%s · %s%d fail%s\n", stamp,
 		p.Green, n.OK+n.Info, p.Reset, p.Yellow, n.Warn, p.Reset, p.Red, n.Fail, p.Reset)
-	for _, ch := range c.Changes {
+	for _, ch := range changes {
 		fmt.Fprintf(out, "       %s\n", describeChange(ch, p))
 	}
-	writeFiles(out, cfg, rep, c.N == 1)
 }
 
 func describeChange(ch history.Change, p report.Palette) string {

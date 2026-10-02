@@ -74,6 +74,7 @@ JSON.parse(localStorage.getItem("profile")).auth.key
 | `--show-urls` | | Show full addon URLs (**may contain your API keys**) |
 | `--profile-dir` | | Stremio `Local Storage/leveldb` folder, if auto-detection misses it |
 | `--watch` | | Keep running and rescan every `--interval` |
+| `--tray` | | Watch from a system tray icon (implies `--watch`) |
 | `--interval` | `15m` | Time between scans in watch mode (minimum `1m`) |
 | `--history <file>` | see below | Where scan summaries are kept (`""` to disable) |
 | `--keep-days` | `30` | Days of history to keep |
@@ -89,6 +90,15 @@ stremio-doctor --watch
 It rescans every 15 minutes, prints one line per scan, and calls out any addon whose status changed (`Torrentio: ok → fail`). The HTML report is rewritten after every scan and gains a **History** section showing each addon's status over recent scans, its uptime and its typical stream time.
 
 Every run, watched or not, appends a short summary to a history file in your user config folder (`%AppData%\stremio-doctor\history.jsonl` on Windows, `~/Library/Application Support/stremio-doctor/` on macOS, `~/.config/stremio-doctor/` on Linux). It holds addon names, hosts, statuses and timings, never addon URLs or keys, and it stays on your computer. Entries older than `--keep-days` are dropped.
+
+### Tray icon
+
+`stremio-doctor --tray` runs the same watch loop behind an icon in the system tray (menu bar on macOS). The icon is green, amber or red for the worst addon status. Its menu shows the latest result and the addons with problems, and has **Scan now**, **Open report**, **Pause watching** and **Quit**.
+
+To use it without a terminal, make a shortcut with the flag added:
+
+- **Windows:** right-click `stremio-doctor.exe` → *Create shortcut*, open the shortcut's *Properties*, and add ` --tray` to the end of *Target*. To start it with Windows, put the shortcut in the folder that `Win+R` → `shell:startup` opens.
+- **macOS / Linux:** run `stremio-doctor --tray &`, or add that command to your login items / autostart. On Linux the desktop needs a StatusNotifierItem tray (KDE, or GNOME with the AppIndicator extension).
 
 ## What gets tested
 
@@ -116,7 +126,9 @@ go test ./...
 go build ./cmd/stremio-doctor
 ```
 
-Releases are built by [GoReleaser](https://goreleaser.com) when a `v*` tag is pushed.
+On macOS the tray needs cgo, so building there needs the Xcode command line tools (`xcode-select --install`). Windows and Linux builds are pure Go.
+
+Releases are built by [GoReleaser](https://goreleaser.com) on a macOS runner when a `v*` tag is pushed.
 
 ## Licence
 

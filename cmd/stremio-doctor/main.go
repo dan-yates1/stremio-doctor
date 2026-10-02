@@ -39,6 +39,7 @@ type config struct {
 	noColor  bool
 
 	watch       bool
+	tray        bool
 	interval    time.Duration
 	historyPath string
 	keepDays    int
@@ -86,9 +87,11 @@ func parseFlags() (config, bool) {
 	flag.DurationVar(&cfg.interval, "interval", defaultInterval, "time between scans in watch mode (minimum 1m)")
 	flag.StringVar(&cfg.historyPath, "history", history.DefaultPath(), "file that keeps a summary of every scan (empty to disable)")
 	flag.IntVar(&cfg.keepDays, "keep-days", 30, "days of history to keep")
+	flag.BoolVar(&cfg.tray, "tray", false, "show a system tray icon and keep watching (implies --watch)")
 	flag.BoolVar(&version, "version", false, "print version and exit")
 	flag.Parse()
 	cfg.discover.ManualURLs = manual
+	cfg.watch = cfg.watch || cfg.tray
 	return cfg, version
 }
 
@@ -110,6 +113,9 @@ func run(cfg config) int {
 		if cfg.interval < minInterval {
 			fmt.Fprintf(os.Stderr, "--interval must be at least %s, so addons aren't hammered.\n", minInterval)
 			return 2
+		}
+		if cfg.tray {
+			return runTray(ctx, cfg, out, palette)
 		}
 		return runWatch(ctx, cfg, out, palette)
 	}

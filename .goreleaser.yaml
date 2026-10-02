@@ -1,11 +1,24 @@
 version: 2
 
 builds:
-  - main: ./cmd/stremio-doctor
+  # Windows and Linux are pure Go and cross-compile anywhere.
+  - id: default
+    main: ./cmd/stremio-doctor
     binary: stremio-doctor
     env:
       - CGO_ENABLED=0
-    goos: [windows, darwin, linux]
+    goos: [windows, linux]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+  # The macOS tray (fyne.io/systray) needs cgo, so darwin must be built on a
+  # macOS runner; Apple clang builds both architectures.
+  - id: darwin
+    main: ./cmd/stremio-doctor
+    binary: stremio-doctor
+    env:
+      - CGO_ENABLED=1
+    goos: [darwin]
     goarch: [amd64, arm64]
     ldflags:
       - -s -w -X main.version={{.Version}}

@@ -22,3 +22,29 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
       - run: go build ./cmd/stremio-doctor
+
+  # Catch release-config breakage (e.g. darwin cgo builds) before a tag.
+  release-snapshot:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean
+      - name: darwin binaries have LC_UUID
+        run: |
+          for b in dist/*darwin*/stremio-doctor; do
+            otool -l "$b" | grep -q LC_UUID || { echo "$b has no LC_UUID"; exit 1; }
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snapshot
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
