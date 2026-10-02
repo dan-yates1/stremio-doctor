@@ -20,6 +20,9 @@ var htmlTemplate string
 // minScale keeps bars for a set of fast addons from being stretched full width.
 const minScale = time.Second
 
+// historyCellStep is the width in px of one scan in the history strip, gap included.
+const historyCellStep = 8
+
 var tmpl = template.Must(template.New("report").Funcs(template.FuncMap{
 	"dur":       diagnose.Dur,
 	"breakdown": diagnose.Breakdown,
@@ -49,6 +52,10 @@ var tmpl = template.Must(template.New("report").Funcs(template.FuncMap{
 	},
 	"timing":  func(c scan.Check) probe.Timing { return c.Median() },
 	"columns": func() []string { return columns },
+	"cellX":   func(i int) int { return i * historyCellStep },
+	"stripW":  func(n int) int { return n*historyCellStep - 2 },
+	"ms":      func(ms int64) string { return diagnose.Dur(time.Duration(ms) * time.Millisecond) },
+	"uptime":  func(p float64) string { return fmt.Sprintf("%.0f%%", p) },
 }).Parse(htmlTemplate))
 
 type htmlData struct {

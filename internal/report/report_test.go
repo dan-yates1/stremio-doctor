@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dan-yates1/stremio-doctor/internal/diagnose"
 	"github.com/dan-yates1/stremio-doctor/internal/probe"
 	"github.com/dan-yates1/stremio-doctor/internal/scan"
 )
@@ -76,5 +77,30 @@ func TestShowURLsKeepsFullURLs(t *testing.T) {
 	}
 	if !strings.Contains(html.String(), "SECRETKEY") || !strings.Contains(html.String(), "Do not share") {
 		t.Error("expected full URLs and a warning with --show-urls")
+	}
+}
+
+func TestHTMLRendersHistory(t *testing.T) {
+	r := Build(sampleInput(false))
+	var without bytes.Buffer
+	if err := WriteHTML(&without, r); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(without.String(), "<h2>History</h2>") {
+		t.Error("history section shown without history")
+	}
+
+	at := time.Date(2026, 1, 2, 15, 4, 0, 0, time.UTC)
+	r.History = &HistoryView{From: at, Scans: 2, Rows: []HistoryRow{{Name: "A<b>", Host: "h", Uptime: 50, StreamMs: 1500,
+		Cells: []HistoryCell{{Time: at, Present: true, Status: diagnose.Fail}, {Time: at, Present: false}}}}}
+	var html bytes.Buffer
+	if err := WriteHTML(&html, r); err != nil {
+		t.Fatal(err)
+	}
+	out := html.String()
+	for _, want := range []string{"<h2>History</h2>", `class="s-fail"`, `class="s-none"`, "50%", "1.5s", "A&lt;b&gt;"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("HTML missing %q", want)
+		}
 	}
 }

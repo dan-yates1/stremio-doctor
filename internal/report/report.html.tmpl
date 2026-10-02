@@ -50,6 +50,9 @@ details.addon[open] > summary::before { content: "▾"; }
 .dns { background: var(--dns); } .connect { background: var(--connect); } .tls { background: var(--tls); }
 .server { background: var(--server); } .download { background: var(--download); }
 code { font-size: .85em; word-break: break-all; }
+.strip { display: block; }
+.s-ok { fill: var(--ok); } .s-info { fill: var(--info); } .s-warn { fill: var(--warn); }
+.s-fail { fill: var(--fail); } .s-none { fill: var(--line); }
 footer { margin-top: 40px; }
 </style>
 </head>
@@ -108,6 +111,28 @@ footer { margin-top: 40px; }
       {{end}}
     </table>
   </div>
+
+  {{with .History}}
+  <h2>History</h2>
+  <p class="muted">{{.Scans}} scans since {{.From.Format "2 Jan 15:04"}}. Each block is one scan, newest on the right; grey means the addon wasn't installed then.</p>
+  <div class="card table-wrap">
+    <table>
+      <tr><th>Addon</th><th>Recent scans</th><th class="num">Up</th><th class="num">Stream (median)</th></tr>
+      {{range .Rows}}
+      <tr>
+        <td class="name">{{.Name}} <span class="muted">{{.Host}}</span></td>
+        <td>
+          <svg class="strip" width="{{stripW (len .Cells)}}" height="16" role="img" aria-label="Status over the last {{len .Cells}} scans">
+            {{range $i, $c := .Cells}}<rect x="{{cellX $i}}" width="6" height="16" rx="1" class="{{if $c.Present}}s-{{$c.Status}}{{else}}s-none{{end}}"><title>{{$c.Time.Format "2 Jan 15:04"}}: {{if $c.Present}}{{$c.Status}}{{else}}not installed{{end}}</title></rect>{{end}}
+          </svg>
+        </td>
+        <td class="num">{{uptime .Uptime}}</td>
+        <td class="num">{{if .StreamMs}}{{ms .StreamMs}}{{else}}-{{end}}</td>
+      </tr>
+      {{end}}
+    </table>
+  </div>
+  {{end}}
 
   <h2>Request details</h2>
   <div class="legend">

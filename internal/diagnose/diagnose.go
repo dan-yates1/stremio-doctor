@@ -24,12 +24,27 @@ const (
 	Fail
 )
 
-func (s Severity) String() string {
-	return [...]string{"ok", "info", "warn", "fail"}[s]
-}
+var severityNames = [...]string{"ok", "info", "warn", "fail"}
+
+func (s Severity) String() string { return severityNames[s] }
 
 // MarshalJSON encodes the severity as its name.
 func (s Severity) MarshalJSON() ([]byte, error) { return json.Marshal(s.String()) }
+
+// UnmarshalJSON decodes a severity name written by MarshalJSON.
+func (s *Severity) UnmarshalJSON(b []byte) error {
+	var name string
+	if err := json.Unmarshal(b, &name); err != nil {
+		return err
+	}
+	for i, n := range severityNames {
+		if n == name {
+			*s = Severity(i)
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown severity %q", name)
+}
 
 // Finding is one diagnosis.
 type Finding struct {

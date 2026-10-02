@@ -22,6 +22,31 @@ type Report struct {
 	Findings  []diagnose.Finding `json:"findings"` // across several addons
 	Counts    Counts             `json:"counts"`
 	Redacted  bool               `json:"redacted"`
+	History   *HistoryView       `json:"history,omitempty"` // set by the caller from past runs
+}
+
+// HistoryView is the past-runs section of a report: one row per current
+// addon, oldest scan first. It is built by package history.
+type HistoryView struct {
+	From  time.Time    `json:"from"`
+	Scans int          `json:"scans"`
+	Rows  []HistoryRow `json:"rows"`
+}
+
+// HistoryRow is one addon's record over the history window.
+type HistoryRow struct {
+	Name     string        `json:"name"`
+	Host     string        `json:"host"`
+	Uptime   float64       `json:"uptime"`   // percent of scans where it wasn't failing
+	StreamMs int64         `json:"streamMs"` // median stream time, 0 when unknown
+	Cells    []HistoryCell `json:"cells"`
+}
+
+// HistoryCell is the addon's status in one past scan.
+type HistoryCell struct {
+	Time    time.Time         `json:"time"`
+	Present bool              `json:"present"` // false when the addon wasn't installed then
+	Status  diagnose.Severity `json:"status"`
 }
 
 // Addon is one addon's measurements plus its diagnosis.
