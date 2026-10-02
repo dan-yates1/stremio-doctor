@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/dan-yates1/stremio-doctor/internal/discover"
+	"github.com/dan-yates1/stremio-doctor/internal/history"
 	"github.com/dan-yates1/stremio-doctor/internal/report"
 	"github.com/dan-yates1/stremio-doctor/internal/scan"
 )
@@ -36,6 +37,11 @@ type config struct {
 	noOpen   bool
 	showURLs bool
 	noColor  bool
+
+	watch       bool
+	interval    time.Duration
+	historyPath string
+	keepDays    int
 }
 
 type urlList []string
@@ -50,7 +56,8 @@ func main() {
 		return
 	}
 	code := run(cfg)
-	if launchedFromExplorer() {
+	// After Ctrl+C in watch mode the user is done; don't ask for Enter too.
+	if launchedFromExplorer() && !cfg.watch {
 		fmt.Print("\nPress Enter to exit...")
 		bufio.NewReader(os.Stdin).ReadBytes('\n')
 	}
@@ -75,6 +82,10 @@ func parseFlags() (config, bool) {
 	flag.BoolVar(&cfg.noOpen, "no-open", false, "don't open the HTML report in the browser")
 	flag.BoolVar(&cfg.showURLs, "show-urls", false, "show full addon URLs in reports (they may contain API keys!)")
 	flag.BoolVar(&cfg.noColor, "no-color", false, "disable coloured output")
+	flag.BoolVar(&cfg.watch, "watch", false, "keep running and rescan every --interval")
+	flag.DurationVar(&cfg.interval, "interval", defaultInterval, "time between scans in watch mode (minimum 1m)")
+	flag.StringVar(&cfg.historyPath, "history", history.DefaultPath(), "file that keeps a summary of every scan (empty to disable)")
+	flag.IntVar(&cfg.keepDays, "keep-days", 30, "days of history to keep")
 	flag.BoolVar(&version, "version", false, "print version and exit")
 	flag.Parse()
 	cfg.discover.ManualURLs = manual
@@ -95,14 +106,54 @@ func run(cfg config) int {
 		palette = report.ANSI
 	}
 
-	fmt.Fprintln(out, "Looking for your Stremio addons...")
-	found, err := discover.Discover(ctx, cfg.discover)
-	if err != nil {
-		printDiscoveryHelp(out, err, found.Notes)
-		return 1
+	if cfg.watch {
+		if cfg.interval < minInterval {
+			fmt.Fprintf(os.Stderr, "--interval must be at least %s, so addons aren't hammered.\n", minInterval)
+			return 2
+		}
+		return runWatch(ctx, cfg, out, palette)
 	}
 
-	fmt.Fprintf(out, "Found %d addons. Testing each one %d times...\n", len(found.Addons), cfg.scan.Rounds)
+	rep, err := scanOnce(ctx, cfg, out, true)
+	var de *discoveryError
+	switch {
+	case errors.As(err, &de):
+		printDiscoveryHelp(out, de.err, de.notes)
+		return 1
+	case err != nil:
+		fmt.Fprintln(out, "Interrupted.")
+		return 130
+	}
+	rep.History = recordHistory(cfg, history.Summarize(rep))
+	report.WriteTerminal(out, rep, palette)
+	return writeFiles(out, cfg, rep, true)
+}
+
+// discoveryError is a failure to find any addons, with the notes gathered
+// while looking.
+type discoveryError struct {
+	err   error
+	notes []string
+}
+
+func (e *discoveryError) Error() string { return e.err.Error() }
+func (e *discoveryError) Unwrap() error { return e.err }
+
+// scanOnce discovers and scans the addons and builds the report. verbose
+// prints progress as it goes. It returns ctx's error when interrupted.
+func scanOnce(ctx context.Context, cfg config, out io.Writer, verbose bool) (report.Report, error) {
+	logf := func(format string, a ...any) {
+		if verbose {
+			fmt.Fprintf(out, format, a...)
+		}
+	}
+	logf("Looking for your Stremio addons...\n")
+	found, err := discover.Discover(ctx, cfg.discover)
+	if err != nil {
+		return report.Report{}, &discoveryError{err: err, notes: found.Notes}
+	}
+
+	logf("Found %d addons. Testing each one %d times...\n", len(found.Addons), cfg.scan.Rounds)
 	var (
 		baseline []scan.Baseline
 		wg       sync.WaitGroup
@@ -113,7 +164,7 @@ func run(cfg config) int {
 		baseline = scan.RunBaseline(ctx, scan.BaselineTargets, 10*time.Second)
 	}()
 	var progress func(done, total int)
-	if isTerminal(out) {
+	if verbose && isTerminal(out) {
 		progress = func(done, total int) { fmt.Fprintf(out, "\r  %d/%d addons tested", done, total) }
 	}
 	results := scan.Run(ctx, found.Addons, cfg.scan, progress)
@@ -121,20 +172,19 @@ func run(cfg config) int {
 	if progress != nil {
 		fmt.Fprint(out, "\r"+strings.Repeat(" ", 40)+"\r")
 	}
-	if ctx.Err() != nil {
-		fmt.Fprintln(out, "Interrupted.")
-		return 130
+	if err := ctx.Err(); err != nil {
+		return report.Report{}, err
 	}
 
-	rep := report.Build(report.Input{
+	return report.Build(report.Input{
 		Version: version, Source: found.Source, Notes: found.Notes, Rounds: cfg.scan.Rounds,
 		Baseline: baseline, Results: results, ShowURLs: cfg.showURLs,
-	})
-	report.WriteTerminal(out, rep, palette)
-	return writeFiles(out, cfg, rep)
+	}), nil
 }
 
-func writeFiles(out io.Writer, cfg config, rep report.Report) int {
+// writeFiles writes the JSON and HTML reports. announce prints the HTML path
+// and opens it (watch mode only does that for the first scan).
+func writeFiles(out io.Writer, cfg config, rep report.Report, announce bool) int {
 	code := 0
 	if cfg.jsonPath != "" {
 		if err := writeJSON(cfg.jsonPath, rep); err != nil {
@@ -149,6 +199,9 @@ func writeFiles(out io.Writer, cfg config, rep report.Report) int {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Couldn't write HTML report:", err)
 		return 1
+	}
+	if !announce {
+		return code
 	}
 	fmt.Fprintf(out, "\nFull report: %s\n", path)
 	if !cfg.noOpen {

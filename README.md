@@ -73,6 +73,22 @@ JSON.parse(localStorage.getItem("profile")).auth.key
 | `--no-open` | | Don't open the report in the browser |
 | `--show-urls` | | Show full addon URLs (**may contain your API keys**) |
 | `--profile-dir` | | Stremio `Local Storage/leveldb` folder, if auto-detection misses it |
+| `--watch` | | Keep running and rescan every `--interval` |
+| `--interval` | `15m` | Time between scans in watch mode (minimum `1m`) |
+| `--history <file>` | see below | Where scan summaries are kept (`""` to disable) |
+| `--keep-days` | `30` | Days of history to keep |
+
+## Watch mode and history
+
+Slowness that comes and goes is hard to catch with one test. Run:
+
+```bash
+stremio-doctor --watch
+```
+
+It rescans every 15 minutes, prints one line per scan, and calls out any addon whose status changed (`Torrentio: ok → fail`). The HTML report is rewritten after every scan and gains a **History** section showing each addon's status over recent scans, its uptime and its typical stream time.
+
+Every run, watched or not, appends a short summary to a history file in your user config folder (`%AppData%\stremio-doctor\history.jsonl` on Windows, `~/Library/Application Support/stremio-doctor/` on macOS, `~/.config/stremio-doctor/` on Linux). It holds addon names, hosts, statuses and timings, never addon URLs or keys, and it stays on your computer. Entries older than `--keep-days` are dropped.
 
 ## What gets tested
 
@@ -91,6 +107,7 @@ Each request uses a fresh connection, so every result has a full DNS → connect
 - Addon URLs often contain debrid API keys. **Reports redact them by default** (`https://host/…/manifest.json`), so you can paste reports into GitHub issues or Reddit.
 - Your Stremio auth key is only ever sent to `api.strem.io` (the official API), and only to *read* your addon list. It is never printed, logged, or written to disk. The tool never changes your addons.
 - Nothing is sent anywhere else. The only network traffic is to your own addons and the three reference endpoints above.
+- The history file (see [Watch mode and history](#watch-mode-and-history)) stays on your computer and never contains addon URLs.
 
 ## Building from source
 
