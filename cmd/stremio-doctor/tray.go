@@ -25,6 +25,7 @@ func runTray(ctx context.Context, cfg config, out io.Writer, p report.Palette) i
 	if htmlPath == "" {
 		htmlPath = filepath.Join(os.TempDir(), defaultHTMLName)
 	}
+	sh := newSharer(cfg)
 	var (
 		mu         sync.Mutex
 		reportPath string
@@ -56,6 +57,7 @@ func runTray(ctx context.Context, cfg config, out io.Writer, p report.Palette) i
 			mu.Lock()
 			reportPath = path
 			mu.Unlock()
+			sh.maybeShare(ctx, out, rep)
 		},
 		OpenReport: func() {
 			mu.Lock()
